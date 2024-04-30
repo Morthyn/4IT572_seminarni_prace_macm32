@@ -1,0 +1,136 @@
+name: Build and test eshop
+
+on:
+  workflow_dispatch:
+  push:
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4.1.1
+        with:
+          token: ${{ secrets.WORKFLOW_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4.0.0
+        with:
+          node-version: 14
+
+      - name: Cache node modules
+        uses: actions/cache@v3.3.2
+        with:
+          path: node_modules
+          key: node_modules-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: node_modules-
+
+      - name: Install packages with npm
+        run: |
+          npm ci
+
+  build:
+    needs: install
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4.1.1
+        with:
+          token: ${{ secrets.WORKFLOW_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4.0.0
+        with:
+          node-version: 14
+
+      - name: Cache node modules
+        uses: actions/cache@v3.3.2
+        with:
+          path: node_modules
+          key: node_modules-${{ hashFiles('**/package-lock.json') }}
+
+      - name: Build
+        run: |
+          npm rebuild node-sass --force
+          npm run build -- --colors
+
+      - name: Cache node modules and build folder
+        if: ${{ github.ref == 'refs/heads/main' }}
+        uses: actions/cache@v3.3.2
+        with:
+          path: |
+            ~/.npm
+            ./node_modules
+            ./build
+          key: ${{ runner.os }}-build-${{ github.run_id }}
+          restore-keys: ${{ runner.os }}-build-${{ github.run_id }}
+
+
+  test:
+    needs: install
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4.1.1
+        with:
+          token: ${{ secrets.WORKFLOW_TOKEN }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4.0.0
+        with:
+          node-version: 14
+
+      - name: Cache node modules
+        uses: actions/cache@v3.3.2
+        with:
+          path: node_modules
+          key: node_modules-${{ hashFiles('**/package-lock.json') }}
+
+      - name: Run tests
+        run: |
+          npm run test -- --colors
+
+  deploy:
+    needs: [ build, test ]
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Code checkout
+        uses: actions/checkout@v4.1.1
+        with:
+          token: ${{ secrets.WORKFLOW_TOKEN }}
+
+      - name: Load node.js modules and build folder
+        uses: actions/cache@v3.3.2
+        with:
+          path: |
+            ~/.npm
+            ./node_modules
+            ./build
+          key: ${{ runner.os }}-build-${{ github.run_id }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5.1.0
+
+      - name: Install ansible
+        run: |
+          pip3 install ansible boto boto3
+
+      - name: Set up and run Ansible
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: False
+        working-directory: ./ansible
+        run: |
+          echo '${{ secrets.SSH_KEY }}' > AWS_macm32.pem
+          chmod 400 AWS_macm32.pem
+          echo '${{ secrets.VAULT_PASSWORD }}' > vault_password
+          mkdir -p group_vars/all/
+          echo 'access_key: ${{ secrets.AWS_ACCESS_KEY }}' > group_vars/all/aws.yml
+          echo 'secret_key: ${{ secrets.AWS_SECRET_KEY }}' >> group_vars/all/aws.yml
+          echo 'session_token: ${{ secrets.AWS_SESSION_TOKEN }}' >> group_vars/all/aws.yml
+          ansible-vault encrypt group_vars/all/aws.yml --vault-password-file vault_password
+          ansible-playbook ec2_deploy.yml --vault-pass-file vault_password --user ec2-user --key-file AWS_macm32.pem
