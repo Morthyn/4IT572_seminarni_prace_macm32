@@ -11,7 +11,7 @@
         key_name: DevOps
         vpc_subnet_id: subnet-0268d5039cfcadf69
         tags:
-          Name: Eshop
+          Name: Eshop Seminar Paper
         count: 1
         security_group: eshop
         network:
