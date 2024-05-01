@@ -87,7 +87,7 @@
   connection: local
 
   tasks:
-    - name: Gather facts about existing instances except the newly launched
+    - name: Gather facts about all 'Eshop Seminar Paper' instances
       ec2_instance_info:
         region: us-east-1
         filters:
