@@ -93,18 +93,17 @@
         filters:
           "tag:Name": "Eshop Seminar Paper"
           "instance-state-name": "running"
-          "tag:Deployment": "{{ ansible_date_time.iso8601 }}"
         aws_access_key: "{{ access_key }}"
         aws_secret_key: "{{ secret_key }}"
         security_token: "{{ session_token }}"
-      register: ec2_facts
+      register: all_ec2_info
 
     - name: Terminate old instances
       ec2_instance:
         state: absent
         region: us-east-1
-        instance_ids: "{{ ec2_facts.instances | map(attribute='instance_id') | list }}"
+        instance_ids: "{{ all_ec2_info.instances | rejectattr('instance_id', 'equalto', ec2_instance_result.instances[0].instance_id) | map(attribute='instance_id') | list }}"
         aws_access_key: "{{ access_key }}"
         aws_secret_key: "{{ secret_key }}"
         security_token: "{{ session_token }}"
-      when: ec2_facts.instances | length > 0
+      when: all_ec2_info.instances | length > 1
