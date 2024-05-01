@@ -1,6 +1,7 @@
 - name: Deploy to ec2
   hosts: localhost
   connection: local
+  gather_facts: no
 
   tasks:
     - name: Launch ec2 to instance
@@ -82,18 +83,30 @@
         port:
           80
 
-- name: Remove old instance
+- name: Cleanup old EC2 instances
   hosts: localhost
   connection: local
+  gather_facts: no
 
   tasks:
-    - name: Terminate old instance
-      amazon.aws.ec2_instance:
-        instance_ids: "{{ ec2_instance_result.instances[0].instance_id }}"
+    - name: Gather facts about existing instances except the newly launched
+      ec2_instance_info:
         region: us-east-1
-        state: "terminated"
-        wait: true
+        filters:
+          "tag:Name": "Eshop Seminar Paper"
+          "instance-state-name": "running"
+          "tag:Deployment": "{{ ansible_date_time.iso8601 }}"
         aws_access_key: "{{ access_key }}"
         aws_secret_key: "{{ secret_key }}"
         security_token: "{{ session_token }}"
-      when: ec2_instance_result.instances | length > 1
+      register: ec2_facts
+
+    - name: Terminate old instances
+      ec2_instance:
+        state: absent
+        region: us-east-1
+        instance_ids: "{{ ec2_facts.instances | map(attribute='instance_id') | list }}"
+        aws_access_key: "{{ access_key }}"
+        aws_secret_key: "{{ secret_key }}"
+        security_token: "{{ session_token }}"
+      when: ec2_facts.instances | length > 0
