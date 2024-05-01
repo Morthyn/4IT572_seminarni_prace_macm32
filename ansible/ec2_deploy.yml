@@ -1,7 +1,6 @@
 - name: Deploy to ec2
   hosts: localhost
   connection: local
-  gather_facts: no
 
   tasks:
     - name: Launch ec2 to instance
@@ -86,7 +85,6 @@
 - name: Cleanup old EC2 instances
   hosts: localhost
   connection: local
-  gather_facts: no
 
   tasks:
     - name: Gather facts about existing instances except the newly launched
